@@ -47,7 +47,16 @@ const PRESET_USERS: UserInfo[] = [
 ];
 
 export default function RecordsPage() {
-  const [currentUser, setCurrentUser] = useState<UserInfo>(PRESET_USERS[0]);
+  const [currentUser, setCurrentUser] = useState<UserInfo>(() => {
+    if (typeof window !== 'undefined') {
+      const savedEmail = localStorage.getItem('active_tenant_email');
+      if (savedEmail) {
+        const found = PRESET_USERS.find((u) => u.email === savedEmail);
+        if (found) return found;
+      }
+    }
+    return PRESET_USERS[0];
+  });
   const [records, setRecords] = useState<PublicRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -171,6 +180,9 @@ export default function RecordsPage() {
   }, [currentUser, fetchRecords, fetchAuditLogs, fetchRecordDetail]);
 
   const handleSelectUser = (user: UserInfo) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('active_tenant_email', user.email);
+    }
     setCurrentUser(user);
     setSelectedRecordId(null);
     setActiveRecord(null);

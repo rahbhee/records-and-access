@@ -24,6 +24,7 @@ npm run test:queries
 
 Open [http://localhost:3004](http://localhost:3004) to access the application.
 
-## Documentation
+## Documentation & Review Guide
 
-Full engineering documentation, concept answers, data models, query optimization tables, attack audit matrices, and visual evidence are detailed in [DOCUMENTATION.md](./DOCUMENTATION.md).
+- Full engineering documentation, concept answers, data models, query optimization tables, attack audit matrices, and visual evidence: [DOCUMENTATION.md](./DOCUMENTATION.md)
+- Guide for peer reviewers with test cases and comment taxonomy: [PEER_REVIEW_GUIDE.md](./PEER_REVIEW_GUIDE.md)
