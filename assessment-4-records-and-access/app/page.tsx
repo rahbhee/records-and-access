@@ -47,7 +47,11 @@ const PRESET_USERS: UserInfo[] = [
 ];
 
 export default function RecordsPage() {
+  // Start with the same user on the server and the first client render.
+  // The saved tenant is restored only after the component mounts to avoid
+  // a hydration mismatch caused by reading localStorage during render.
   const [currentUser, setCurrentUser] = useState<UserInfo>(PRESET_USERS[0]);
+  const [hydrated, setHydrated] = useState(false);
   const [records, setRecords] = useState<PublicRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -142,8 +146,24 @@ export default function RecordsPage() {
     }
   }, []);
 
+  // Restore the previously selected tenant after the client has mounted.
+  // This keeps the server render and first client render identical.
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('active_tenant_email');
+
+    if (savedEmail) {
+      const found = PRESET_USERS.find((u) => u.email === savedEmail);
+      if (found) {
+        setCurrentUser(found);
+      }
+    }
+
+    setHydrated(true);
+  }, []);
+
   // Initial load and URL param reading
   useEffect(() => {
+    if (!hydrated) return;
     fetchRecords(currentUser);
     fetchAuditLogs(currentUser);
 
@@ -168,9 +188,12 @@ export default function RecordsPage() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [currentUser, fetchRecords, fetchAuditLogs, fetchRecordDetail]);
+  }, [hydrated, currentUser, fetchRecords, fetchAuditLogs, fetchRecordDetail]);
 
   const handleSelectUser = (user: UserInfo) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('active_tenant_email', user.email);
+    }
     setCurrentUser(user);
     setSelectedRecordId(null);
     setActiveRecord(null);
