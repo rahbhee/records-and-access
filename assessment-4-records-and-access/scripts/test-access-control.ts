@@ -119,13 +119,13 @@ async function runAccessControlAudit() {
       amount_cents: 9900,
     });
 
-    const preLogsCount = listAuditLogs(100).length;
+    const preLogsCount = listAuditLogs(alice.id, 100).length;
     const deleteRes = deleteScopedRecord(alice, newRecordForAlice.public_id, {
       ipAddress: '127.0.0.1',
       userAgent: 'TestRunner/AuditCheck',
     });
 
-    const postLogs = listAuditLogs(100);
+    const postLogs = listAuditLogs(alice.id, 100);
     const createdAudit = postLogs.find((l) => l.record_public_id === newRecordForAlice.public_id);
     const recordExists = getScopedRecord(alice.id, newRecordForAlice.public_id).record;
 

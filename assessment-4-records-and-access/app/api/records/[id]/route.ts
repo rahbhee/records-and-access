@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { getScopedRecord, deleteScopedRecord } from '@/lib/records';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,7 +23,6 @@ export async function GET(
 
   if (!record) {
     if (existsGlobally) {
-      // The record exists, but belongs to another user
       return NextResponse.json(
         {
           error: 'Forbidden: You do not have permission to access this record',
@@ -31,20 +32,14 @@ export async function GET(
       );
     }
     return NextResponse.json(
-      {
-        error: 'Record not found',
-        code: 'RECORD_NOT_FOUND',
-      },
+      { error: 'Record not found', code: 'RECORD_NOT_FOUND' },
       { status: 404 }
     );
   }
 
   return NextResponse.json({
     data: record,
-    authenticated_as: {
-      public_id: user.public_id,
-      email: user.email,
-    },
+    authenticated_as: { public_id: user.public_id, email: user.email },
   });
 }
 
@@ -66,10 +61,7 @@ export async function DELETE(
     const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
     const userAgent = req.headers.get('user-agent') || 'Unknown';
 
-    const result = deleteScopedRecord(user, id, {
-      ipAddress,
-      userAgent,
-    });
+    const result = deleteScopedRecord(user, id, { ipAddress, userAgent });
 
     return NextResponse.json({
       message: 'Record deleted successfully and audit trail logged',
@@ -80,9 +72,7 @@ export async function DELETE(
     const error = err as Error & { statusCode?: number };
     const statusCode = error.statusCode || 500;
     return NextResponse.json(
-      {
-        error: error.message || 'Failed to delete record',
-      },
+      { error: error.message || 'Failed to delete record' },
       { status: statusCode }
     );
   }

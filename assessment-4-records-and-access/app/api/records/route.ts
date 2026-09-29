@@ -1,41 +1,45 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { authenticateRequest } from '@/lib/auth';
+import { createRecord, listUserRecords } from '@/lib/records';
 
-export async function GET(request: Request) {
-  const user = await getUserFromToken(request);
+export const dynamic = 'force-dynamic';
+
+const createRecordSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  category: z.string().trim().min(1, 'Category is required').max(100),
+  content: z.string().trim().min(1, 'Content is required').max(5000),
+  amount_cents: z.number().int().min(0).max(1_000_000_000_000).default(0),
+});
+
+export async function GET(req: NextRequest) {
+  const user = authenticateRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const records = await prisma.record.findMany({ where: { ownerId: user.id } });
-  return NextResponse.json({ data: records });
+
+  const records = listUserRecords(user.id);
+  return NextResponse.json({ data: records, count: records.length });
 }
 
-export async function POST(request: Request) {
-  const user = await getUserFromToken(request);
+export async function POST(req: NextRequest) {
+  const user = authenticateRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const body = await request.json();
-  const newRecord = await prisma.record.create({
-    data: {
-      public_id: `rec_${crypto.randomUUID()}`,
-      title: body.title,
-      category: body.category,
-      content: body.content,
-      amount_cents: body.amount_cents,
-      ownerId: user.id,
-    },
-  });
 
-  // Create audit log for creation
-  await prisma.auditLog.create({
-    data: {
-      public_id: `log_${crypto.randomUUID()}`,
-      user_email: user.email,
-      record_public_id: newRecord.public_id,
-      record_title: newRecord.title,
-      action: 'CREATE',
-      metadata_json: body,
-      userId: user.id,
-    },
-  });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-  return NextResponse.json({ data: newRecord }, { status: 201 });
+  const parsed = createRecordSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', issues: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
+  // The owner always comes from the authenticated user, never from the body.
+  const record = createRecord(user.id, parsed.data);
+  return NextResponse.json({ data: record }, { status: 201 });
 }

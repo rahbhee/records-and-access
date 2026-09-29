@@ -224,19 +224,21 @@ export function deleteScopedRecord(
 }
 
 /**
- * List audit logs for review and defense verification.
+ * List audit logs for the authenticated user ONLY.
+ * Scoped in the SQL itself so one tenant can never read another's audit trail.
  */
-export function listAuditLogs(limit = 50): AuditLogItem[] {
+export function listAuditLogs(userId: number, limit = 50): AuditLogItem[] {
   const sql = `
     SELECT public_id, user_email, record_public_id, record_title, action, metadata_json, ip_address, user_agent, created_at
     FROM audit_logs
-    ORDER BY created_at DESC
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
     LIMIT ?
   `;
   return trackedQuery<AuditLogItem[]>(
     'LIST_AUDIT_LOGS',
     sql,
-    (db) => db.prepare(sql).all(limit) as AuditLogItem[],
-    [limit]
+    (db) => db.prepare(sql).all(userId, limit) as AuditLogItem[],
+    [userId, limit]
   );
 }
