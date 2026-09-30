@@ -209,7 +209,7 @@ export default function Page() {
         <section className="card">
           <h2>Audit trail</h2>
           {audits.length === 0 ? (
-            <div className="empty">No deletions recorded yet.</div>
+            <div className="empty">No activity recorded yet.</div>
           ) : (
             <div className="scroll">
               <table>

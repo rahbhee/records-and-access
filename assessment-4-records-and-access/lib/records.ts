@@ -91,35 +91,19 @@ export function getScopedRecord(
 
 /**
  * Create a new record owned by the authenticated user.
+ * The record insert and its RECORD_CREATED audit entry run in ONE transaction,
+ * so a record can never exist without evidence of who created it.
  */
-export function createRecord(userId: number, input: CreateRecordInput): PublicRecord {
+export function createRecord(
+  user: User,
+  input: CreateRecordInput,
+  meta: { ipAddress?: string | null; userAgent?: string | null } = {}
+): PublicRecord {
+  const db = getDb();
   const publicId = generatePublicId('rec');
   const now = new Date().toISOString();
 
-  const sql = `
-    INSERT INTO records (public_id, user_id, title, category, content, amount_cents, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
-  `;
-
-  trackedQuery(
-    'CREATE_RECORD',
-    sql,
-    (db) => {
-      db.prepare(sql).run(
-        publicId,
-        userId,
-        input.title.trim(),
-        input.category.trim(),
-        input.content.trim(),
-        input.amount_cents || 0,
-        now,
-        now
-      );
-    },
-    [publicId, userId, input.title, input.category, input.content, input.amount_cents, now, now]
-  );
-
-  return {
+  const record: PublicRecord = {
     public_id: publicId,
     title: input.title.trim(),
     category: input.category.trim(),
@@ -129,6 +113,49 @@ export function createRecord(userId: number, input: CreateRecordInput): PublicRe
     created_at: now,
     updated_at: now,
   };
+
+  const insertRecordSql = `
+    INSERT INTO records (public_id, user_id, title, category, content, amount_cents, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+  `;
+  const insertAuditSql = `
+    INSERT INTO audit_logs (
+      public_id, user_id, user_email, record_public_id, record_title,
+      action, metadata_json, ip_address, user_agent, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `;
+
+  const tx = db.transaction(() => {
+    db.prepare(insertRecordSql).run(
+      publicId, user.id, record.title, record.category, record.content, record.amount_cents, now, now
+    );
+    db.prepare(insertAuditSql).run(
+      generatePublicId('aud'),
+      user.id,
+      user.email,
+      publicId,
+      record.title,
+      'RECORD_CREATED',
+      JSON.stringify({
+        category: record.category,
+        amount_cents: record.amount_cents,
+        created_by_user_id: user.public_id,
+        created_by_email: user.email,
+      }),
+      meta.ipAddress || '127.0.0.1',
+      meta.userAgent || 'API/Browser'
+    );
+  });
+
+  // Params list holds ids only: record content never enters the query tracker.
+  trackedQuery(
+    'CREATE_RECORD_TRANSACTION',
+    'BEGIN TRANSACTION -> INSERT records -> INSERT audit_logs -> COMMIT',
+    () => tx(),
+    [user.id, publicId]
+  );
+
+  return record;
 }
 
 /**

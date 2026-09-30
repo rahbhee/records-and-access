@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
   }
 
   // The owner always comes from the authenticated user, never from the body.
-  const record = createRecord(user.id, parsed.data);
+  const record = createRecord(user, parsed.data, {
+    ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+    userAgent: req.headers.get('user-agent') || 'Unknown',
+  });
   return NextResponse.json({ data: record }, { status: 201 });
 }
