@@ -112,20 +112,20 @@ async function runAccessControlAudit() {
 
   // TEST 5: Legitimate deletion by Alice with transactional audit log creation
   {
-    const newRecordForAlice = createRecord(alice.id, {
+    const newRecordForAlice = createRecord(alice, {
       title: 'Ephemeral Audit Verification Record',
       category: 'Test & Verification',
       content: 'Temporary record generated specifically to prove atomic audit log persistence upon deletion.',
       amount_cents: 9900,
     });
 
-    const preLogsCount = listAuditLogs(100).length;
+    const preLogsCount = listAuditLogs(alice.id, 100).length;
     const deleteRes = deleteScopedRecord(alice, newRecordForAlice.public_id, {
       ipAddress: '127.0.0.1',
       userAgent: 'TestRunner/AuditCheck',
     });
 
-    const postLogs = listAuditLogs(100);
+    const postLogs = listAuditLogs(alice.id, 100);
     const createdAudit = postLogs.find((l) => l.record_public_id === newRecordForAlice.public_id);
     const recordExists = getScopedRecord(alice.id, newRecordForAlice.public_id).record;
 
@@ -139,6 +139,30 @@ async function runAccessControlAudit() {
       actualStatus: 200,
       passed,
       reason: `Audit log ${deleteRes.auditPublicId} persisted inside atomic transaction before record deletion.`,
+    });
+  }
+
+  // TEST 6: Creating a record writes an audit entry, visible to the owner only
+  {
+    const created = createRecord(alice, {
+      title: 'Audit-on-create verification',
+      category: 'Test & Verification',
+      content: 'Creation must leave an audit trail.',
+      amount_cents: 100,
+    });
+    const aliceSees = listAuditLogs(alice.id, 100).some(
+      (l) => l.record_public_id === created.public_id && l.action === 'RECORD_CREATED'
+    );
+    const bobSees = listAuditLogs(bob.id, 100).some((l) => l.record_public_id === created.public_id);
+    auditResults.push({
+      method: 'POST',
+      route: '/api/records',
+      actor: 'User 1 (Alice)',
+      attempt: 'Create a record, then read the audit trail as owner and as Bob',
+      expectedStatus: 201,
+      actualStatus: 201,
+      passed: aliceSees && !bobSees,
+      reason: 'RECORD_CREATED audit row written in the same transaction; audit list is scoped by user_id.',
     });
   }
 

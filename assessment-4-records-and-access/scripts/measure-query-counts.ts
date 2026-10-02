@@ -29,7 +29,7 @@ async function measureQueryCounts() {
   const viewCount = viewQueries.length;
 
   // 3. Measure DELETE RECORD
-  const tempRecord = createRecord(alice.id, {
+  const tempRecord = createRecord(alice, {
     title: 'Benchmarking Query Count Record',
     category: 'Benchmark',
     content: 'Temporary record for measurement',
